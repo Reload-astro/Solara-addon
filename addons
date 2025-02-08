@@ -1,68 +1,62 @@
 local Library = {}
 
-function Library.getmetatable(table_or_userdata)
-    local result = getmetatable(table_or_userdata)
-    if result == nil then return end
-    if type(result) == "table" and pcall(setmetatable, table_or_userdata, result) then
-        return result
-    end
-    local real_metamethods = {}
-    xpcall(function() return table_or_userdata._ end, function() real_metamethods.__index = debug.info(2, "f") end)
-    xpcall(function() table_or_userdata._ = table_or_userdata end, function() real_metamethods.__newindex = debug.info(2, "f") end)
-    xpcall(function() return table_or_userdata:___() end, function() real_metamethods.__namecall = debug.info(2, "f") end)
-    xpcall(function() table_or_userdata() end, function() real_metamethods.__call = debug.info(2, "f") end)
-    real_metamethods.__metatable = "Locked!"
-    return real_metamethods
-end
-
 Library.setmetatable = setmetatable
 
-function Library.getrawmetatable(object)
-    assert(type(object) == "table" or type(object) == "userdata", "invalid argument #1 to 'getrawmetatable' (table or userdata expected)")
-    local raw_mt = Library.getmetatable(object)
-    if raw_mt and raw_mt.__metatable then
-        raw_mt.__metatable = nil 
-        local result_mt = Library.getmetatable(object)
-        raw_mt.__metatable = "Locked!"
-        return result_mt
+function Library.getmetatable(obj)
+    local mt = getmetatable(obj)
+    if type(mt) == "table" then
+        return mt
     end
-    return raw_mt
+    return nil
 end
 
-function Library.setrawmetatable(object, newmetatbl)
-    assert(type(object) == "table" or type(object) == "userdata", "invalid argument #1 to 'setrawmetatable'")
-    assert(type(newmetatbl) == "table" or newmetatbl == nil, "invalid argument #2 to 'setrawmetatable'")
-    local raw_mt = Library.getmetatable(object)
-    if raw_mt then
-        local success, err = pcall(setmetatable, object, newmetatbl)
-        if not success then error("failed to set metatable: " .. tostring(err)) end
-        return true  
-    end
-    return false
-end
-
-function Library.hookmetamethod(t, index, func)
-    assert(type(t) == "table" or type(t) == "userdata", "invalid argument #1 to 'hookmetamethod'")
-    assert(type(index) == "string", "invalid argument #2 to 'hookmetamethod'")
-    assert(type(func) == "function", "invalid argument #3 to 'hookmetamethod'")
-    local mt = Library.getmetatable(t)
-    if mt then
-        mt[index] = func
+function Library.getrawmetatable(obj)
+    assert(type(obj) == "table" or type(obj) == "userdata", "invalid argument #1 to 'getrawmetatable' (table or userdata expected)")
+    local mt = Library.getmetatable(obj)
+    if mt and mt.__metatable then
+        local temp = mt.__metatable
+        mt.__metatable = nil 
+        local result = Library.getmetatable(obj)
+        mt.__metatable = temp 
+        return result
     end
     return mt
 end
 
-function Library.setreadonly(table_or_userdata, readonly)
-    assert(type(table_or_userdata) == "table" or type(table_or_userdata) == "userdata", "invalid argument #1 to 'setreadonly'")
+function Library.setrawmetatable(obj, new_mt)
+    assert(type(obj) == "table" or type(obj) == "userdata", "invalid argument #1 to 'setrawmetatable'")
+    assert(type(new_mt) == "table" or new_mt == nil, "invalid argument #2 to 'setrawmetatable'")
+    local success, err = pcall(setmetatable, obj, new_mt)
+    if not success then
+        error("failed to set metatable: " .. tostring(err))
+    end
+    return true
+end
+
+function Library.hookmetamethod(obj, method, func)
+    assert(type(obj) == "table" or type(obj) == "userdata", "invalid argument #1 to 'hookmetamethod'")
+    assert(type(method) == "string", "invalid argument #2 to 'hookmetamethod'")
+    assert(type(func) == "function", "invalid argument #3 to 'hookmetamethod'")
+    
+    local mt = Library.getrawmetatable(obj)
+    if not mt then
+        error("object has no metatable")
+    end
+
+    local old = mt[method]
+    mt[method] = func
+
+    return old
+end
+
+function Library.setreadonly(obj, readonly)
+    assert(type(obj) == "table" or type(obj) == "userdata", "invalid argument #1 to 'setreadonly'")
     assert(type(readonly) == "boolean", "invalid argument #2 to 'setreadonly'")
-    local mt = Library.getrawmetatable(table_or_userdata)
+    
+    local mt = Library.getrawmetatable(obj)
     if mt then
         pcall(function()
-            if readonly then
-                mt.__metatable = "Locked!"
-            else
-                mt.__metatable = nil
-            end
+            mt.__metatable = readonly and "Locked!" or nil
         end)
     end
 end
