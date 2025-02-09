@@ -1,6 +1,10 @@
+--local addons = loadstring(game:HttpGet("https://raw.githubusercontent.com/Reload-astro/Solara-addon/refs/heads/main/addons"))()
+
 local Library = {}
 
 Library.setmetatable = setmetatable
+
+local nilinstances, cache = {Instance.new("Part")}, {cached = {}}
 
 function Library.getmetatable(obj)
     local mt = getmetatable(obj)
@@ -8,6 +12,32 @@ function Library.getmetatable(obj)
         return mt
     end
     return nil
+end
+
+function Library.getnilinstances()
+	return nilinstances
+end
+
+function cache.iscached(t)
+	return cache.cached[t] ~= 'r' or (not t:IsDescendantOf(game))
+end
+function cache.invalidate(t)
+	cache.cached[t] = 'r'
+	t.Parent = nil
+end
+function cache.replace(x, y)
+	if cache.cached[x] then
+		cache.cached[x] = y
+	end
+	y.Parent = x.Parent
+	y.Name = x.Name
+	x.Parent = nil
+end
+
+Library.cache = cache
+
+function Library.getgc()
+	return table.clone(nilinstances)
 end
 
 function Library.getrawmetatable(obj)
